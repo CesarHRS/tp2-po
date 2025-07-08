@@ -1,0 +1,9 @@
+var x1 integer >=0;
+var x2 integer >=0;
+
+maximize: 6*x1 + 5*x2;
+
+subject to: 3*x1 + 1*x2 <= 11;
+subject to: -1*x1 + 2*x2 <= 5;
+
+end;

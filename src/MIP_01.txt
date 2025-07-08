@@ -1,0 +1,11 @@
+var x1 real >=0;
+var x2 integer free;
+
+maximize: 1*x1 + 2*x2;
+
+subject to: 1*x1 - 2*x2 <= 4;
+subject to: -3*x1 + 2*x2 <= 6;
+subject to: 4*x1 + 5*x2 <= 20;
+subject to: 2*x1 + 1*x2 >= 2;
+
+end;

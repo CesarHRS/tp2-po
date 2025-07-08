@@ -1,0 +1,9 @@
+var x1 integer >=0;
+var x2 integer >=0;
+
+maximize: 1*x1 + 2*x2;
+
+subject to: 1*x1 - 1*x2 <= 3;
+subject to: 2*x1 <= 8;
+
+end;
