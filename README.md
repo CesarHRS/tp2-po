@@ -111,3 +111,57 @@ python3 main.py exemplo1.txt
 - **Precisão Numérica**: Pequenas imprecisões podem ocorrer devido à tolerância na verificação de integridade das variáveis.
 
 ---
+
+---
+
+## **6. Implementação Gurobi**
+
+### **6.1. Objetivo**
+
+Foi implementada uma nova versão do projeto utilizando a API do Gurobi para resolver o mesmo problema de Programação Linear Inteira Mista, permitindo comparação prática de desempenho e facilidade de implementação com a versão anterior.
+
+### **6.2. Funcionamento**
+
+- Utiliza o mesmo arquivo de entrada em formato AMPL simplificado.
+
+- Realiza o parsing do arquivo para extrair variáveis, restrições e a função objetivo.
+
+- Cria o modelo diretamente com a biblioteca gurobipy.
+
+- Define variáveis e restrições no modelo e resolve utilizando o solver nativo do Gurobi, que implementa branch-and-bound, cuts e heurísticas automaticamente.
+
+Exibe:
+
+- O log detalhado do Gurobi (nós, cortes, gaps, tempo).
+
+- O valor ótimo da função objetivo.
+
+- O valor de cada variável na solução ótima.
+
+## **7. Como Executar**
+
+### **7.1. Pré-requisitos**
+
+- Python 3.x instalado.
+- Biblioteca: gurobipy (instalável via pip install gurobipy).
+
+### **7.2. Comando de Execução**
+
+```bash
+python3 gurobi_solver.py <arquivo_de_entrada.txt>
+```
+
+**Exemplo:**
+
+```bash
+python3 gurobi_solver.py exemplo1.txt
+```
+
+---
+
+## **8. Vantagens dessa abordagem**
+
+-  Velocidade: Gurobi utiliza técnicas avançadas para acelerar a resolução de problemas MIP.
+-  Facilidade de uso: Modelagem clara e concisa, utilizando a API do Gurobi.
+-  Escalabilidade: Mais adequado para problemas de maior porte.
+-  Comparativo didático: Permite comparar resultados e desempenho com o método implementado manualmente com pulp, auxiliando no aprendizado de Pesquisa Operacional.
