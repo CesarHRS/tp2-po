@@ -1,88 +1,82 @@
 import sys
 import time
-import pulp
 import re
-from collections import deque
+import gurobipy as gp
+from gurobipy import GRB
 
 def parse_ampl_file(filepath):
-    # Faz o parsing do arquivo AMPL simplificado
-    variables = []
-    var_types = {}
-    var_bounds = {}
-    constraints = []
-    objective = None
-    sense = None
 
+    #Lê um arquivo e extrai a lista de variáveis, função objetivo e restrições.
+    variables = []        
+    var_types = {}        
+    var_bounds = {}       
+    constraints = []      
+    objective = None      
+    sense = None          
+
+    # Lê o arquivo, ignorando linhas vazias e comentários
     with open(filepath, 'r') as f:
         lines = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
 
     for line in lines:
+        # Feclaração de variável: var nome tipo limite;
         if line.startswith('var'):
-            # Exemplo: var x1 real >=0;
             m = re.match(r'var\s+(\w+)\s+(real|integer)\s+(>=0|<=0|free);', line)
             if m:
                 name, vtype, bound = m.groups()
                 variables.append(name)
                 var_types[name] = vtype
+                # Definição dos limites de acordo com o tipo
                 if bound == '>=0':
-                    var_bounds[name] = (0, None)
+                    var_bounds[name] = (0, GRB.INFINITY)
                 elif bound == '<=0':
-                    var_bounds[name] = (None, 0)
+                    var_bounds[name] = (-GRB.INFINITY, 0)
                 else:
-                    var_bounds[name] = (None, None)
+                    var_bounds[name] = (-GRB.INFINITY, GRB.INFINITY)
+        # Max ou Min
         elif line.startswith('maximize') or line.startswith('minimize'):
-            # Exemplo: maximize: 1*x1 + 2*x2;
-            sense = pulp.LpMaximize if line.startswith('maximize') else pulp.LpMinimize
+            sense = GRB.MAXIMIZE if line.startswith('maximize') else GRB.MINIMIZE
             expr = line.split(':',1)[1].rstrip(';').strip()
             objective = expr
+        # Restrição
         elif line.startswith('subject to'):
-            # Exemplo: subject to: 1*x1 - 2*x2 <= 4;
             expr = line.split(':',1)[1].rstrip(';').strip()
             constraints.append(expr)
+        # Fim
         elif line.startswith('end;'):
             break
 
     return variables, var_types, var_bounds, sense, objective, constraints
 
-def build_lp(variables, var_types, var_bounds, sense, objective, constraints, extra_constraints=None):
-    # Monta o modelo de PL usando pulp
-    prob = pulp.LpProblem("MIP", sense)
-    var_objs = {}
-    for v in variables:
-        cat = pulp.LpInteger if var_types[v] == 'integer' else pulp.LpContinuous
-        lb, ub = var_bounds[v]
-        var_objs[v] = pulp.LpVariable(v, lowBound=lb, upBound=ub, cat=cat)
-    # Função objetivo
-    prob += parse_linear_expr(objective, var_objs)
-    # Restrições
-    for c in constraints:
-        prob += parse_constraint(c, var_objs)
-    # Restrições extras (para ramificações)
-    if extra_constraints:
-        for c in extra_constraints:
-            prob += c
-    return prob, var_objs
-
+# Converte input para o Gurobi
 def parse_linear_expr(expr, var_objs):
-    # Faz o parsing de uma expressão linear, exemplo: "1*x1 + 2*x2"
+
+    # Extrai termos ('coef * var')
     terms = re.findall(r'([+-]?\s*\d*\.?\d*)\s*\*\s*(\w+)', expr)
     result = 0
     for coef, var in terms:
         coef = coef.replace(' ', '')
-        if coef in ('', '+'): coef = 1
-        elif coef == '-': coef = -1
-        else: coef = float(coef)
+        # Trata os sinais
+        if coef in ('', '+'):
+            coef = 1
+        elif coef == '-':
+            coef = -1
+        else:
+            coef = float(coef)
+        # Soma o termo à expressão
         result += coef * var_objs[var]
     return result
 
+# Converte as restrições (input) para o Gurobi
 def parse_constraint(expr, var_objs):
-    # Faz o parsing de uma restrição, exemplo: "1*x1 - 2*x2 <= 4"
+    # Divide a restrição em lado esquerdo, operador e lado direito
     m = re.match(r'(.+)\s*(<=|=|>=)\s*([+-]?\d*\.?\d+)', expr)
     if not m:
         raise ValueError(f"Restrição inválida: {expr}")
     lexpr, op, rhs = m.groups()
     lhs = parse_linear_expr(lexpr, var_objs)
     rhs = float(rhs)
+    # Retorna a restrição
     if op == '<=':
         return lhs <= rhs
     elif op == '>=':
@@ -90,114 +84,52 @@ def parse_constraint(expr, var_objs):
     else:
         return lhs == rhs
 
-def is_integral(var_objs, solution, var_types, tol=1e-5):
-    # Verifica se todas as variáveis inteiras têm valor inteiro na solução
-    for v in var_objs:
-        if var_types[v] == 'integer':
-            val = solution[v]
-            if abs(val - round(val)) > tol:
-                return False, v
-    return True, None
-
-def format_solution(solution, variables):
-    # Formata a solução para exibição
-    return [f"{solution[v]:.4f}" for v in variables]
-
-def branch_and_bound(filepath):
+def solve(filepath):
+    # Faz o parsing do input
     variables, var_types, var_bounds, sense, objective, constraints = parse_ampl_file(filepath)
-    best_obj = None
-    best_sol = None
-    start_time = time.time()
-    node_queue = deque()
-    node_queue.append(([], 1))  # (restrições extras, id do nó)
-    iter_count = 0
-    evaluated_nodes = 0
-    node_id_counter = 2
-    log_lines = []
-    best_obj_history = []
-    while node_queue:
-        extra_constraints, node_id = node_queue.popleft()
-        iter_count += 1
-        prob, var_objs = build_lp(variables, var_types, var_bounds, sense, objective, constraints, extra_constraints)
-        prob.solve(pulp.PULP_CBC_CMD(msg=0))
-        evaluated_nodes += 1
-        status = pulp.LpStatus[prob.status]
-        elapsed = time.time() - start_time
-        action = ''
-        obj_val = None
-        improved = ''
-        if status == 'Infeasible':
-            action = 'I'
-        elif status == 'Unbounded':
-            action = 'L'
-        elif status == 'Optimal':
-            obj_val = pulp.value(prob.objective)
-            solution = {v: var_objs[v].varValue for v in variables}
-            integral, frac_var = is_integral(var_objs, solution, var_types)
-            if integral:
-                action = 'O'
-                if (best_obj is None) or \
-                   (sense == pulp.LpMaximize and obj_val > best_obj + 1e-5) or \
-                   (sense == pulp.LpMinimize and obj_val < best_obj - 1e-5):
-                    best_obj = obj_val
-                    best_sol = solution
-                    improved = '*'
-            else:
-                # Ramifica na primeira variável inteira fracionária encontrada
-                action = 'D'
-                val = solution[frac_var]
-                floor = int(val)
-                ceil = floor + 1
-                # Ramo esquerdo: var <= floor
-                left = extra_constraints + [var_objs[frac_var] <= floor]
-                # Ramo direito: var >= ceil
-                right = extra_constraints + [var_objs[frac_var] >= ceil]
-                node_queue.append((left, node_id_counter))
-                node_id_counter += 1
-                node_queue.append((right, node_id_counter))
-                node_id_counter += 1
-        else:
-            action = 'I'
-        # Log da iteração
-        log_lines.append([
-            f"{iter_count}",
-            f"{evaluated_nodes}",
-            f"{len(node_queue)}",
-            f"{obj_val:.4f}" if obj_val is not None else "-",
-            action,
-            f"{best_obj:.4f}{improved}" if best_obj is not None else "-",
-            f"{elapsed:.4f}"
-        ])
-        best_obj_history.append(best_obj)
-        # Poda por limite
-        if obj_val is not None and best_obj is not None:
-            if sense == pulp.LpMaximize and obj_val < best_obj - 1e-5:
-                action = 'L'
-            elif sense == pulp.LpMinimize and obj_val > best_obj + 1e-5:
-                action = 'L'
-    # Imprime a tabela de log
-    print(f"{'Iter':>4} {'Aval.':>6} {'Pend.':>6} {'ObjRelax':>10} {'Ação':>4} {'MelhorInt':>12} {'Tempo(s)':>10}")
-    for l in log_lines:
-        print(f"{l[0]:>4} {l[1]:>6} {l[2]:>6} {l[3]:>10} {l[4]:>4} {l[5]:>12} {l[6]:>10}")
+    start_time = time.time()  
+
+    model = gp.Model("MIP_from_AMPL")
+    model.setParam('OutputFlag', 1) 
+
+    # Cria as variáveis conforme tipo e limites
+    var_objs = {}
+    for v in variables:
+        lb, ub = var_bounds[v]
+        vtype = GRB.INTEGER if var_types[v] == 'integer' else GRB.CONTINUOUS
+        var_objs[v] = model.addVar(lb=lb, ub=ub, vtype=vtype, name=v)
+
+    model.update() 
+
+    # Define a função objetivo
+    obj_expr = parse_linear_expr(objective, var_objs)
+    model.setObjective(obj_expr, sense)
+
+    # Adiciona as restrições
+    for c in constraints:
+        constr = parse_constraint(c, var_objs)
+        model.addConstr(constr)
+
+    model.optimize()
+
     print()
-    # Saída final
     print("RESULTADO FINAL")
-    if best_obj is not None:
-        print(f"Valor ótimo: {best_obj:.4f}")
-        print(f"Número total de iterações: {evaluated_nodes}")
+    if model.status == GRB.OPTIMAL:
+        print(f"Valor ótimo: {model.ObjVal:.4f}")
         print(f"Tempo total: {time.time()-start_time:.4f} segundos")
         print("Solução ótima encontrada:")
         for v in variables:
-            print(f"  {v} = {best_sol[v]:.4f}")
+            print(f"  {v} = {var_objs[v].X:.4f}")
+    elif model.status == GRB.INFEASIBLE:
+        print("Problema inviável.")
+    elif model.status == GRB.UNBOUNDED:
+        print("Problema ilimitado.")
     else:
-        # Detecta se foi inviável ou ilimitado
-        if any(l[4] == 'L' for l in log_lines):
-            print("Problema ilimitado.")
-        else:
-            print("Problema inviável.")
+        print(f"Status do solver: {model.status}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Uso: python main.py <arquivo_de_entrada>")
         sys.exit(1)
-    branch_and_bound(sys.argv[1])
+    solve(sys.argv[1])
