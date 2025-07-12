@@ -1,7 +1,7 @@
-# **Branch-and-Bound para Programação Linear Inteira Mista**
+# **Branch-and-Bound e Gurobi para Programação Linear Inteira Mista**
 
-**Autor**: César Henrique Resende Soares e Henrique Souza Fagundes  
-**Disciplina**: Pesquisa Operacional 
+**Autores**: César Henrique Resende Soares e Henrique Souza Fagundes  
+**Disciplina**: Pesquisa Operacional  
 **Professor**: André L. Maravilha  
 **Instituição**: CEFET-MG
 
@@ -9,7 +9,7 @@
 
 ## **1. Objetivo**
 
-Este programa tem como objetivo **resolver problemas de Programação Linear Inteira Mista** utilizando o algoritmo de **Branch-and-Bound** baseado em relaxação linear, identificando a solução ótima, além de detectar casos de inviabilidade e ilimitado.
+Este projeto tem como objetivo **resolver problemas de Programação Linear Inteira Mista** a partir de arquivos no formato AMPL simplificado, utilizando a API oficial do Gurobi:
 
 ---
 
@@ -17,7 +17,7 @@ Este programa tem como objetivo **resolver problemas de Programação Linear Int
 
 ### **2.1. Entrada**
 
-O programa recebe um **arquivo de texto** (`*.txt`) no formato AMPL, contendo:
+O programa recebe um **arquivo de texto** (`*.txt`) no formato AMPL simplificado, contendo:
 
 - Declaração das variáveis (tipo e domínio)
 - Função objetivo (maximize ou minimize)
@@ -38,48 +38,17 @@ end;
 
 ### **2.2. Saída**
 
-Durante a execução, o programa exibe uma tabela a cada iteração do Branch-and-Bound, contendo:
-
-- Número da iteração
-- Número de nós avaliados
-- Número de nós pendentes
-- Valor da função objetivo da relaxação linear
-- Ação tomada (O: ótimo, L: poda por limite, I: inviável, D: decomposição)
-- Valor da melhor solução inteira conhecida (com * se melhorou)
-- Tempo decorrido (segundos)
-
-Ao final, são exibidos:
-
-- Valor ótimo da função objetivo (ou mensagem de inviabilidade/ilimitado)
-- Número total de iterações
-- Tempo total de execução
-- Solução ótima encontrada (valores das variáveis)
+Durante a execução, o programa exibe um log detalhado do Gurobi, contendo os nós, cortes, gaps e tempo
 
 ---
 
-## **3. Método Utilizado**
+## **3. Métodos Utilizados**
 
-### **3.1. Algoritmo**
-
-1. **Parsing do arquivo de entrada**:
-    - Interpreta variáveis, tipos, domínios, função objetivo e restrições.
-
-2. **Branch-and-Bound**:
-    - Resolve a relaxação linear do problema atual.
-    - Se a solução for inteira, atualiza a melhor solução.
-    - Se não for, ramifica na primeira variável inteira fracionária, criando dois subproblemas.
-    - Realiza poda por inviabilidade, otimalidade e limite.
-    - Mantém log detalhado de cada iteração.
-
-3. **Tratamento de casos especiais**:
-    - Detecta e informa problemas inviáveis ou ilimitados.
-
-### **3.2. Bibliotecas Utilizadas**
-
-- `pulp`: Para modelagem e resolução de problemas de programação linear.
-- `re`: Para parsing das expressões do arquivo de entrada.
-- `collections.deque`: Para gerenciamento da fila de nós do Branch-and-Bound.
-- `time`: Para cálculo do tempo de execução.
+- Utiliza o mesmo arquivo de entrada.
+- Realiza o parsing do arquivo para extrair variáveis, restrições e a função objetivo.
+- Cria o modelo diretamente com a biblioteca `gurobipy`.
+- Define variáveis e restrições no modelo e resolve utilizando o solver do Gurobi.
+- Exibe o log do Gurobi e a solução ótima.
 
 ---
 
@@ -87,8 +56,16 @@ Ao final, são exibidos:
 
 ### **4.1. Pré-requisitos**
 
-- Python 3.x instalado.
-- Biblioteca: `pulp` (instalável via `pip install pulp`).
+- Python 3.10 instalado.
+
+#### Para Gurobi:
+
+- Biblioteca: `gurobipy`  
+  Instale com:
+  ```bash
+  pip install gurobipy
+  ```
+---
 
 ### **4.2. Comando de Execução**
 
@@ -96,72 +73,4 @@ Ao final, são exibidos:
 python3 main.py <arquivo_de_entrada.txt>
 ```
 
-**Exemplo:**
-
-```bash
-python3 main.py exemplo1.txt
-```
-
 ---
-
-## **5. Limitações**
-
-- **Eficiência**: Para problemas grandes, o Branch-and-Bound pode ser lento devido ao crescimento exponencial do número de nós.
-- **Parsing**: O parser foi desenvolvido para o formato AMPL simplificado conforme o enunciado; entradas fora desse padrão podem não ser reconhecidas.
-- **Precisão Numérica**: Pequenas imprecisões podem ocorrer devido à tolerância na verificação de integridade das variáveis.
-
----
-
----
-
-## **6. Implementação Gurobi**
-
-### **6.1. Objetivo**
-
-Foi implementada uma nova versão do projeto utilizando a API do Gurobi para resolver o mesmo problema de Programação Linear Inteira Mista, permitindo comparação prática de desempenho e facilidade de implementação com a versão anterior.
-
-### **6.2. Funcionamento**
-
-- Utiliza o mesmo arquivo de entrada em formato AMPL simplificado.
-
-- Realiza o parsing do arquivo para extrair variáveis, restrições e a função objetivo.
-
-- Cria o modelo diretamente com a biblioteca gurobipy.
-
-- Define variáveis e restrições no modelo e resolve utilizando o solver nativo do Gurobi, que implementa branch-and-bound, cuts e heurísticas automaticamente.
-
-Exibe:
-
-- O log detalhado do Gurobi (nós, cortes, gaps, tempo).
-
-- O valor ótimo da função objetivo.
-
-- O valor de cada variável na solução ótima.
-
-## **7. Como Executar**
-
-### **7.1. Pré-requisitos**
-
-- Python 3.x instalado.
-- Biblioteca: gurobipy (instalável via pip install gurobipy).
-
-### **7.2. Comando de Execução**
-
-```bash
-python3 gurobi_solver.py <arquivo_de_entrada.txt>
-```
-
-**Exemplo:**
-
-```bash
-python3 gurobi_solver.py exemplo1.txt
-```
-
----
-
-## **8. Vantagens dessa abordagem**
-
--  Velocidade: Gurobi utiliza técnicas avançadas para acelerar a resolução de problemas MIP.
--  Facilidade de uso: Modelagem clara e concisa, utilizando a API do Gurobi.
--  Escalabilidade: Mais adequado para problemas de maior porte.
--  Comparativo didático: Permite comparar resultados e desempenho com o método implementado manualmente com pulp, auxiliando no aprendizado de Pesquisa Operacional.
