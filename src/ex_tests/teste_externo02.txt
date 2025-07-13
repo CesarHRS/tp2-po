@@ -1,0 +1,9 @@
+var x1 real >=0;
+var x2 real >=0;
+
+minimize: 7*x1 + 5*x2;
+
+subject to: 3*x1 + 2*x2 >= 12;
+subject to: 1*x1 + 4*x2 >= 8;
+
+end;
